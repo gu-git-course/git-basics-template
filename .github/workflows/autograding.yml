@@ -1,4 +1,5 @@
 name: Git Basics Autograding
+
 on:
   push:
   pull_request:
@@ -30,7 +31,7 @@ jobs:
           if git log --oneline --name-only | grep -q "README.md"; then
             LINES_CHANGED=$(git diff HEAD~1 HEAD -- README.md | grep -E "^\+|^-" | wc -l)
             if [ "$LINES_CHANGED" -ge 10 ]; then
-              echo "✅ README.md изменен: $LINES_CHANGED строк"
+              echo "✅ README.md изменён: $LINES_CHANGED строк"
               echo "result=success" >> $GITHUB_OUTPUT
             else
               echo "❌ Недостаточно изменений: $LINES_CHANGED строк (нужно 10)"
@@ -86,9 +87,23 @@ jobs:
 
       - name: Autograding Reporter
         run: |
-          echo "=== Результаты автопроверки ==="
-          echo "Ветка: ${{ steps.branch-test.outputs.result }}"
-          echo "README: ${{ steps.readme-test.outputs.result }}"
-          echo "Коммиты: ${{ steps.commits-test.outputs.result }}"
-          echo "Сообщения: ${{ steps.messages-test.outputs.result }}"
-          echo "Pull Request: ${{ steps.pr-test.outputs.result }}"
+          echo "=========================================="
+          echo "📊 Результаты автопроверки"
+          echo "=========================================="
+          echo "Ветка:          ${{ steps.branch-test.outputs.result }}"
+          echo "README:         ${{ steps.readme-test.outputs.result }}"
+          echo "Коммиты:        ${{ steps.commits-test.outputs.result }}"
+          echo "Сообщения:      ${{ steps.messages-test.outputs.result }}"
+          echo "Pull Request:   ${{ steps.pr-test.outputs.result }}"
+          echo "=========================================="
+          if [ "${{ steps.branch-test.outputs.result }}" = "success" ] && \
+             [ "${{ steps.readme-test.outputs.result }}" = "success" ] && \
+             [ "${{ steps.commits-test.outputs.result }}" = "success" ] && \
+             [ "${{ steps.messages-test.outputs.result }}" = "success" ] && \
+             [ "${{ steps.pr-test.outputs.result }}" = "success" ]; then
+            echo "✅ ЗАДАНИЕ ВЫПОЛНЕНО"
+            exit 0
+          else
+            echo "❌ ЕСТЬ НЕВЫПОЛНЕННЫЕ ПРОВЕРКИ"
+            exit 1
+          fi
