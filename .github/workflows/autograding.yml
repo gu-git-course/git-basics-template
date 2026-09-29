@@ -1,8 +1,8 @@
 name: Git Basics Autograding
 
 on:
-  push:
   pull_request:
+    branches: [main, master]
 
 jobs:
   autograding:
@@ -16,57 +16,62 @@ jobs:
       - name: Check branch creation
         id: branch-test
         run: |
-          CURRENT_BRANCH=$(git branch --show-current)
-          if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
-            echo "✅ Новая ветка создана: $CURRENT_BRANCH"
+          BRANCH="${{ github.head_ref }}"
+          if [ -n "$BRANCH" ] && [ "$BRANCH" != "main" ] && [ "$BRANCH" != "master" ]; then
+            echo "✅ Новая ветка создана: $BRANCH"
             echo "result=success" >> $GITHUB_OUTPUT
           else
-            echo "❌ Текущая ветка: $CURRENT_BRANCH"
+            echo "❌ Имя ветки: '$BRANCH' (нужна ветка, отличная от main/master)"
             echo "result=failure" >> $GITHUB_OUTPUT
           fi
 
       - name: Check README.md editing
         id: readme-test
         run: |
-          if git log --oneline --name-only | grep -q "README.md"; then
-            LINES_CHANGED=$(git diff HEAD~1 HEAD -- README.md | grep -E "^\+|^-" | wc -l)
+          BASE="origin/${{ github.base_ref }}"
+          if git diff "$BASE...HEAD" --name-only | grep -q "README.md"; then
+            LINES_CHANGED=$(git diff "$BASE...HEAD" -- README.md \
+              | grep -E "^\+" | grep -v "^+++" | wc -l)
             if [ "$LINES_CHANGED" -ge 10 ]; then
-              echo "✅ README.md изменён: $LINES_CHANGED строк"
+              echo "✅ README.md изменён: добавлено $LINES_CHANGED строк"
               echo "result=success" >> $GITHUB_OUTPUT
             else
-              echo "❌ Недостаточно изменений: $LINES_CHANGED строк (нужно 10)"
+              echo "❌ Добавлено строк в README.md: $LINES_CHANGED (нужно 10)"
               echo "result=failure" >> $GITHUB_OUTPUT
             fi
           else
-            echo "❌ README.md не найден в истории коммитов"
+            echo "❌ README.md не изменён относительно $BASE"
             echo "result=failure" >> $GITHUB_OUTPUT
           fi
 
       - name: Check multiple commits
         id: commits-test
         run: |
-          COMMIT_COUNT=$(git rev-list --count HEAD)
+          BASE="origin/${{ github.base_ref }}"
+          COMMIT_COUNT=$(git rev-list --count "$BASE..HEAD")
           if [ "$COMMIT_COUNT" -ge 5 ]; then
-            echo "✅ Достаточно коммитов: $COMMIT_COUNT"
+            echo "✅ Достаточно коммитов в ветке: $COMMIT_COUNT"
             echo "result=success" >> $GITHUB_OUTPUT
           else
-            echo "❌ Коммитов: $COMMIT_COUNT (нужно 5)"
+            echo "❌ Коммитов в ветке: $COMMIT_COUNT (нужно 5)"
             echo "result=failure" >> $GITHUB_OUTPUT
           fi
 
       - name: Check commit messages quality
         id: messages-test
         run: |
+          BASE="origin/${{ github.base_ref }}"
           QUALITY_COMMITS=0
-          TOTAL_COMMITS=$(git rev-list --count HEAD)
-          for commit in $(git log --oneline -10 | cut -d' ' -f1); do
-            MESSAGE=$(git log --format=%s -n 1 $commit)
+          TOTAL_COMMITS=$(git rev-list --count "$BASE..HEAD")
+          for commit in $(git rev-list "$BASE..HEAD" | head -10); do
+            MESSAGE=$(git log --format=%s -n 1 "$commit")
             MSG_LENGTH=${#MESSAGE}
-            if [ $MSG_LENGTH -ge 10 ] && [ $MSG_LENGTH -le 100 ]; then
+            echo "  • '$MESSAGE' (${MSG_LENGTH} символов)"
+            if [ "$MSG_LENGTH" -ge 10 ] && [ "$MSG_LENGTH" -le 100 ]; then
               QUALITY_COMMITS=$((QUALITY_COMMITS + 1))
             fi
           done
-          if [ $QUALITY_COMMITS -ge 2 ]; then
+          if [ "$QUALITY_COMMITS" -ge 2 ]; then
             echo "✅ Качественных коммитов: $QUALITY_COMMITS из $TOTAL_COMMITS"
             echo "result=success" >> $GITHUB_OUTPUT
           else
@@ -77,13 +82,9 @@ jobs:
       - name: Check Pull Request creation
         id: pr-test
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "✅ Pull Request создан: #${{ github.event.pull_request.number }}"
-            echo "result=success" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Это не Pull Request (событие: ${{ github.event_name }})"
-            echo "result=failure" >> $GITHUB_OUTPUT
-          fi
+          echo "✅ Pull Request создан: #${{ github.event.pull_request.number }}"
+          echo "✅ Из ветки: ${{ github.head_ref }} → ${{ github.base_ref }}"
+          echo "result=success" >> $GITHUB_OUTPUT
 
       - name: Autograding Reporter
         run: |
